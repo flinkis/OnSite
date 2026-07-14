@@ -8,7 +8,7 @@ import {
   getVerificationPayload,
   type ScanRecord,
 } from '../lib/api';
-import { signOut } from '../lib/auth';
+import { signOut, PENDING_SCAN_SEARCH_KEY } from '../lib/auth';
 import { useAuth } from '../hooks/useAuth';
 
 type ScanState =
@@ -92,6 +92,15 @@ export function ScanPage() {
     },
     [submitScan, scanState.kind, searchParams, setSearchParams],
   );
+
+  useEffect(() => {
+    if (searchParams.get('t')) return;
+    const pending = sessionStorage.getItem(PENDING_SCAN_SEARCH_KEY);
+    if (!pending) return;
+    sessionStorage.removeItem(PENDING_SCAN_SEARCH_KEY);
+    const query = pending.startsWith('?') ? pending.slice(1) : pending;
+    setSearchParams(new URLSearchParams(query), { replace: true });
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     const token = searchParams.get('t');

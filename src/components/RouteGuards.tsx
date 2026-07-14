@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { loginRedirectPath } from '../lib/auth';
 
 export function RequireAuth() {
   const { session, loading } = useAuth();
@@ -14,8 +15,12 @@ export function RequireAuth() {
   }
 
   if (!session) {
-    const callbackUrl = location.pathname + location.search;
-    return <Navigate to={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`} replace />;
+    return (
+      <Navigate
+        to={loginRedirectPath(location.pathname, location.search)}
+        replace
+      />
+    );
   }
 
   return <Outlet />;
@@ -23,6 +28,7 @@ export function RequireAuth() {
 
 export function RequireAdmin() {
   const { session, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -33,7 +39,12 @@ export function RequireAdmin() {
   }
 
   if (!session) {
-    return <Navigate to="/login" replace />;
+    return (
+      <Navigate
+        to={loginRedirectPath(location.pathname, location.search)}
+        replace
+      />
+    );
   }
 
   if (session.role !== 'admin') {
@@ -45,6 +56,7 @@ export function RequireAdmin() {
 
 export function RequireUser() {
   const { session, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -55,7 +67,12 @@ export function RequireUser() {
   }
 
   if (!session) {
-    return <Navigate to="/login" replace />;
+    return (
+      <Navigate
+        to={loginRedirectPath(location.pathname, location.search)}
+        replace
+      />
+    );
   }
 
   if (session.role === 'admin') {

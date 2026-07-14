@@ -1,13 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { IS_MOCK_AUTH } from '../lib/auth-types';
-import { signInAdmin, signInGoogle } from '../lib/auth';
+import {
+  consumePendingScanRedirect,
+  getCallbackTarget,
+  isScanCheckInCallback,
+  rememberScanRedirect,
+  signInAdmin,
+  signInGoogle,
+} from '../lib/auth';
 
 export function LoginPage() {
   const { session, loading } = useAuth();
   const [searchParams] = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') ?? '/';
+  const redirectTarget = getCallbackTarget(callbackUrl);
+  const isScanCheckIn = isScanCheckInCallback(callbackUrl);
   const authError = searchParams.get('error');
   const [showAdmin, setShowAdmin] = useState(false);
   const [password, setPassword] = useState('');
@@ -15,6 +24,13 @@ export function LoginPage() {
     authError === 'Configuration' ? 'Sign-in is not configured correctly.' : '',
   );
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isScanCheckIn) {
+      const url = new URL(callbackUrl, window.location.origin);
+      rememberScanRedirect(url.pathname, url.search);
+    }
+  }, [callbackUrl, isScanCheckIn]);
 
   if (loading) {
     return (
@@ -25,14 +41,17 @@ export function LoginPage() {
   }
 
   if (session) {
-    if (session.role === 'admin') return <Navigate to="/dashboard" replace />;
-    return <Navigate to={callbackUrl} replace />;
+    if (session.role === 'admin' && !isScanCheckIn) {
+      return <Navigate to="/dashboard" replace />;
+    }
+    consumePendingScanRedirect();
+    return <Navigate to={redirectTarget} replace />;
   }
 
   async function handleGoogle() {
     setError('');
     try {
-      await signInGoogle(callbackUrl);
+      await signInGoogle(redirectTarget);
     } catch {
       setError('Could not start Google sign-in. Please try again.');
     }
@@ -42,7 +61,7 @@ export function LoginPage() {
     e.preventDefault();
     setSubmitting(true);
     setError('');
-    const result = await signInAdmin(password, callbackUrl);
+    const result = await signInAdmin(password, redirectTarget);
     if (!result.ok) {
       setError('Invalid credentials');
       setSubmitting(false);
@@ -54,7 +73,11 @@ export function LoginPage() {
       <div className="card stack">
         <div>
           <h1 style={{ margin: 0 }}>OnSite</h1>
-          <p className="muted">Verify your presence at physical locations.</p>
+          <p className="muted">
+            {isScanCheckIn
+              ? 'Sign in to complete your location check-in.'
+              : 'Verify your presence at physical locations.'}
+          </p>
         </div>
 
         <button type="button" className="btn" onClick={() => void handleGoogle()}>

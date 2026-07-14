@@ -127,3 +127,41 @@ export function getScanUrl(codeToken: string) {
   const base = window.location.origin;
   return `${base}/scan?t=${codeToken}`;
 }
+
+export const PENDING_SCAN_SEARCH_KEY = 'onsite_pending_scan';
+
+export function rememberScanRedirect(pathname: string, search: string) {
+  if (pathname === '/scan' && search.includes('t=')) {
+    sessionStorage.setItem(PENDING_SCAN_SEARCH_KEY, search);
+  }
+}
+
+export function loginRedirectPath(pathname: string, search: string): string {
+  rememberScanRedirect(pathname, search);
+  return `/login?callbackUrl=${encodeURIComponent(pathname + search)}`;
+}
+
+export function getCallbackTarget(callbackUrl: string | null): string {
+  const raw = callbackUrl?.trim();
+  if (raw && raw !== '/') {
+    return raw.startsWith('/') ? raw : `/${raw}`;
+  }
+  const pending = sessionStorage.getItem(PENDING_SCAN_SEARCH_KEY);
+  if (pending) {
+    return `/scan${pending.startsWith('?') ? pending : `?${pending}`}`;
+  }
+  return '/';
+}
+
+export function consumePendingScanRedirect() {
+  sessionStorage.removeItem(PENDING_SCAN_SEARCH_KEY);
+}
+
+export function isScanCheckInCallback(callbackUrl: string): boolean {
+  try {
+    const url = new URL(callbackUrl, window.location.origin);
+    return url.pathname === '/scan' && url.searchParams.has('t');
+  } catch {
+    return false;
+  }
+}
