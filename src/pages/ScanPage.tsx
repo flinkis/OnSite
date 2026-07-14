@@ -48,7 +48,13 @@ function ScanPageContent({ session }: { session: Session }) {
   const submitScan = useMutation({
     mutationFn: async (token: string) => {
       const gps = await getVerificationPayload();
-      return apiFetch<{ scan: { locationName: string; scannedAt: string } }>(
+      return apiFetch<{
+        scan: {
+          locationName: string;
+          scannedAt: string;
+          verification?: string;
+        };
+      }>(
         '/api/scans',
         {
           method: 'POST',
@@ -57,6 +63,15 @@ function ScanPageContent({ session }: { session: Session }) {
       );
     },
     onSuccess: (data) => {
+      if (data.scan.verification === 'flagged') {
+        submittedTokenRef.current = null;
+        setScanState({
+          kind: 'error',
+          message: 'You already checked in at this location recently.',
+        });
+        setSearchParams({});
+        return;
+      }
       setScanState({
         kind: 'success',
         locationName: data.scan.locationName,

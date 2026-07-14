@@ -75,12 +75,15 @@ function PresenceTab() {
 
   return (
     <div className="stack">
+      <p className="muted" style={{ margin: 0 }}>
+        Latest check-in per person in the last {data?.windowHours ?? 4} hours.
+      </p>
       {locations.map((locationName) => (
         <div key={locationName} className="card">
           <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>{locationName}</h2>
           <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
             {groups[locationName].map((entry) => (
-              <li key={entry.userId}>
+              <li key={`${entry.userId}-${entry.scannedAt}`}>
                 {entry.userName ?? entry.userId} —{' '}
                 {new Date(entry.scannedAt).toLocaleTimeString([], {
                   hour: '2-digit',
@@ -231,6 +234,10 @@ function LocationsTab() {
   const [lat, setLat] = useState('');
   const [lng, setLng] = useState('');
   const [confirmRotate, setConfirmRotate] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editLat, setEditLat] = useState('');
+  const [editLng, setEditLng] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['locations'],
@@ -275,6 +282,58 @@ function LocationsTab() {
     },
   });
 
+  const updateLocation = useMutation({
+    mutationFn: ({
+      id,
+      name: nextName,
+      lat: nextLat,
+      lng: nextLng,
+    }: {
+      id: string;
+      name: string;
+      lat: string;
+      lng: string;
+    }) => {
+      const latNum = nextLat.trim() ? Number(nextLat) : null;
+      const lngNum = nextLng.trim() ? Number(nextLng) : null;
+      if (nextLat.trim() && Number.isNaN(latNum)) {
+        throw new Error('Latitude must be a number');
+      }
+      if (nextLng.trim() && Number.isNaN(lngNum)) {
+        throw new Error('Longitude must be a number');
+      }
+      if ((latNum == null) !== (lngNum == null)) {
+        throw new Error('Set both latitude and longitude, or leave both empty');
+      }
+
+      return apiFetch<{ location: Location }>(`/api/locations/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: nextName.trim(),
+          lat: latNum,
+          lng: lngNum,
+        }),
+      });
+    },
+    onSuccess: () => {
+      setEditingId(null);
+      void queryClient.invalidateQueries({ queryKey: ['locations'] });
+    },
+  });
+
+  function startEditing(loc: Location) {
+    setConfirmRotate(null);
+    updateLocation.reset();
+    setEditingId(loc.id);
+    setEditName(loc.name);
+    setEditLat(loc.lat != null ? String(loc.lat) : '');
+    setEditLng(loc.lng != null ? String(loc.lng) : '');
+  }
+
+  function cancelEditing() {
+    setEditingId(null);
+  }
+
   return (
     <div className="stack">
       <div className="card stack">
@@ -288,7 +347,7 @@ function LocationsTab() {
         <div className="row">
           <input
             className="input"
-            placeholder="Latitude (optional, for v2)"
+            placeholder="Latitude (optional)"
             value={lat}
             onChange={(e) => setLat(e.target.value)}
           />
@@ -299,6 +358,9 @@ function LocationsTab() {
             onChange={(e) => setLng(e.target.value)}
           />
         </div>
+        <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+          Coordinates enable impossible-travel detection between locations.
+        </p>
         <button
           type="button"
           className="btn"
@@ -325,62 +387,134 @@ function LocationsTab() {
             <tbody>
               {data?.locations.map((loc) => (
                 <tr key={loc.id}>
-                  <td>{loc.name}</td>
-                  <td>{loc.active ? 'Active' : 'Inactive'}</td>
-                  <td>
-                    {loc.lat != null && loc.lng != null
-                      ? `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`
-                      : '—'}
-                  </td>
-                  <td>
-                    <div className="row">
-                      <Link to={`/print/${loc.id}`} className="btn btn-secondary" style={{ textDecoration: 'none', padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}>
-                        Print QR
-                      </Link>
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        style={{ padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}
-                        onClick={() =>
-                          toggleActive.mutate({ id: loc.id, active: !loc.active })
-                        }
-                      >
-                        {loc.active ? 'Deactivate' : 'Activate'}
-                      </button>
-                      {confirmRotate === loc.id ? (
-                        <>
+                  {editingId === loc.id ? (
+                    <>
+                      <td>
+                        <input
+                          className="input"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                        />
+                      </td>
+                      <td>{loc.active ? 'Active' : 'Inactive'}</td>
+                      <td>
+                        <div className="row">
+                          <input
+                            className="input"
+                            placeholder="Latitude"
+                            value={editLat}
+                            onChange={(e) => setEditLat(e.target.value)}
+                          />
+                          <input
+                            className="input"
+                            placeholder="Longitude"
+                            value={editLng}
+                            onChange={(e) => setEditLng(e.target.value)}
+                          />
+                        </div>
+                      </td>
+                      <td>
+                        <div className="row">
                           <button
                             type="button"
-                            className="btn btn-danger"
+                            className="btn"
                             style={{ padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}
-                            onClick={() => rotateToken.mutate(loc.id)}
+                            disabled={!editName.trim() || updateLocation.isPending}
+                            onClick={() =>
+                              updateLocation.mutate({
+                                id: loc.id,
+                                name: editName,
+                                lat: editLat,
+                                lng: editLng,
+                              })
+                            }
                           >
-                            Confirm rotate
+                            Save
                           </button>
                           <button
                             type="button"
                             className="btn btn-secondary"
                             style={{ padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}
-                            onClick={() => setConfirmRotate(null)}
+                            onClick={cancelEditing}
                           >
                             Cancel
                           </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          style={{ padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}
-                          onClick={() => setConfirmRotate(loc.id)}
-                        >
-                          Rotate token
-                        </button>
-                      )}
-                    </div>
-                    <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.75rem' }}>
-                      {getScanUrl(loc.codeToken)}
-                    </p>
-                  </td>
+                        </div>
+                        {updateLocation.isError && (
+                          <p className="error-text" style={{ margin: '0.35rem 0 0', fontSize: '0.75rem' }}>
+                            {updateLocation.error.message}
+                          </p>
+                        )}
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td>{loc.name}</td>
+                      <td>{loc.active ? 'Active' : 'Inactive'}</td>
+                      <td>
+                        {loc.lat != null && loc.lng != null
+                          ? `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`
+                          : '—'}
+                      </td>
+                      <td>
+                        <div className="row">
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}
+                            onClick={() => startEditing(loc)}
+                          >
+                            Edit
+                          </button>
+                          <Link to={`/print/${loc.id}`} className="btn btn-secondary" style={{ textDecoration: 'none', padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}>
+                            Print QR
+                          </Link>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}
+                            onClick={() =>
+                              toggleActive.mutate({ id: loc.id, active: !loc.active })
+                            }
+                          >
+                            {loc.active ? 'Deactivate' : 'Activate'}
+                          </button>
+                          {confirmRotate === loc.id ? (
+                            <>
+                              <button
+                                type="button"
+                                className="btn btn-danger"
+                                style={{ padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}
+                                onClick={() => rotateToken.mutate(loc.id)}
+                              >
+                                Confirm rotate
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-secondary"
+                                style={{ padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}
+                                onClick={() => setConfirmRotate(null)}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}
+                              onClick={() => setConfirmRotate(loc.id)}
+                            >
+                              Rotate token
+                            </button>
+                          )}
+                        </div>
+                        <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.75rem' }}>
+                          {getScanUrl(loc.codeToken)}
+                        </p>
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { Db } from '../db/index.js';
 import { locations, scans } from '../db/schema.js';
 import { checkImpossibleTravel, findDuplicateScan } from '../lib/abuse.js';
-import { DUPLICATE_WINDOW_MINUTES } from '../lib/geo.js';
+import { DUPLICATE_WINDOW_MINUTES, PRESENCE_WINDOW_HOURS } from '../lib/geo.js';
 import type { AuthEnv } from '../middleware/auth.js';
 import { requireAdmin, requireUser } from '../middleware/auth.js';
 
@@ -60,7 +60,45 @@ export function scansRoutes(getDb: (c: { env: AuthEnv['Bindings'] }) => Db) {
     }
 
     const scannedAt = new Date();
+    const priorAtLocation = await findDuplicateScan(
+      db,
+      auth.id,
+      location.id,
+      PRESENCE_WINDOW_HOURS * 60,
+    );
+    const isLocationDuplicate = !!priorAtLocation;
     const travel = await checkImpossibleTravel(db, auth.id, location.id, scannedAt);
+
+    if (isLocationDuplicate) {
+      const [scanRow] = await db
+        .insert(scans)
+        .values({
+          userId: auth.id,
+          userName: auth.name ?? auth.email ?? auth.id,
+          locationId: location.id,
+          scannedAt,
+          gpsLat: body.data.gps?.lat ?? null,
+          gpsLng: body.data.gps?.lng ?? null,
+          gpsAccuracyM: body.data.gps?.accuracy ?? null,
+          verification: 'flagged',
+          flagReason: 'duplicate',
+        })
+        .returning({
+          id: scans.id,
+          scannedAt: scans.scannedAt,
+          verification: scans.verification,
+        });
+
+      return c.json({
+        scan: {
+          id: scanRow.id,
+          locationName: location.name,
+          scannedAt: scanRow.scannedAt,
+          verification: scanRow.verification,
+        },
+      });
+    }
+
     const cutoff = new Date(Date.now() - DUPLICATE_WINDOW_MINUTES * 60 * 1000);
 
     const inserted = await db.execute<{ id: string; scanned_at: Date; verification: string }>(sql`
