@@ -5,7 +5,9 @@ import { IS_MOCK_AUTH } from '../lib/auth-types';
 import {
   consumePendingScanRedirect,
   getCallbackTarget,
+  hasScanSignInBeenAttempted,
   isScanCheckInCallback,
+  markScanSignInAttempted,
   rememberScanRedirect,
   signInAdmin,
   signInGoogle,
@@ -13,11 +15,14 @@ import {
 } from '../lib/auth';
 
 export function LoginPage() {
-  const { session, loading, refresh } = useAuth();
+  const { session, loading } = useAuth();
   const [searchParams] = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') ?? '/';
   const redirectTarget = getCallbackTarget(callbackUrl);
   const isScanCheckIn = isScanCheckInCallback(callbackUrl);
+  const scanToken = isScanCheckIn
+    ? new URL(callbackUrl, window.location.origin).searchParams.get('t')
+    : null;
   const authError = searchParams.get('error');
   const [showAdmin, setShowAdmin] = useState(false);
   const [password, setPassword] = useState('');
@@ -26,6 +31,9 @@ export function LoginPage() {
   );
   const [submitting, setSubmitting] = useState(false);
   const autoSignInRef = useRef(false);
+  const [manualSignIn, setManualSignIn] = useState(
+    () => !!(scanToken && hasScanSignInBeenAttempted(scanToken)),
+  );
 
   useEffect(() => {
     if (isScanCheckIn) {
@@ -35,21 +43,35 @@ export function LoginPage() {
   }, [callbackUrl, isScanCheckIn]);
 
   useEffect(() => {
-    if (callbackUrl && callbackUrl !== '/') {
-      void refresh();
-    }
-  }, [callbackUrl, refresh]);
-
-  useEffect(() => {
-    if (loading || session || authError || showAdmin || !isScanCheckIn || autoSignInRef.current) {
+    if (
+      loading ||
+      session ||
+      authError ||
+      showAdmin ||
+      !isScanCheckIn ||
+      !scanToken ||
+      manualSignIn ||
+      autoSignInRef.current
+    ) {
       return;
     }
     autoSignInRef.current = true;
+    markScanSignInAttempted(scanToken);
     void signInGoogle(redirectTarget).catch(() => {
       autoSignInRef.current = false;
+      setManualSignIn(true);
       setError('Could not start Google sign-in. Please try again.');
     });
-  }, [loading, session, authError, showAdmin, isScanCheckIn, redirectTarget]);
+  }, [
+    loading,
+    session,
+    authError,
+    showAdmin,
+    isScanCheckIn,
+    scanToken,
+    manualSignIn,
+    redirectTarget,
+  ]);
 
   if (loading) {
     return (
@@ -99,9 +121,13 @@ export function LoginPage() {
           </p>
         </div>
 
-        <button type="button" className="btn" onClick={() => void handleGoogle()}>
-          Continue with Google
-        </button>
+        {isScanCheckIn && !manualSignIn && !error && !showAdmin ? (
+          <p className="muted">Redirecting to Google sign-in…</p>
+        ) : (
+          <button type="button" className="btn" onClick={() => void handleGoogle()}>
+            Continue with Google
+          </button>
+        )}
 
         {error && !showAdmin && <p className="error-text">{error}</p>}
 

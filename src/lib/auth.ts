@@ -132,6 +132,22 @@ export function getScanUrl(codeToken: string) {
 
 export const PENDING_SCAN_SEARCH_KEY = 'onsite_pending_scan';
 
+function scanSignInAttemptKey(token: string) {
+  return `onsite_scan_signin:${token}`;
+}
+
+export function hasScanSignInBeenAttempted(token: string) {
+  return sessionStorage.getItem(scanSignInAttemptKey(token)) === 'attempted';
+}
+
+export function markScanSignInAttempted(token: string) {
+  sessionStorage.setItem(scanSignInAttemptKey(token), 'attempted');
+}
+
+export function clearScanSignInAttempt(token: string) {
+  sessionStorage.removeItem(scanSignInAttemptKey(token));
+}
+
 export function rememberScanRedirect(pathname: string, search: string) {
   if (pathname === '/scan' && search.includes('t=')) {
     sessionStorage.setItem(PENDING_SCAN_SEARCH_KEY, search);

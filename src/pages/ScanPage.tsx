@@ -33,7 +33,7 @@ function extractToken(value: string): string | null {
 }
 
 function ScanPageContent({ session }: { session: Session }) {
-  const { refresh } = useAuth();
+  const { clearSession } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [scanState, setScanState] = useState<ScanState>({ kind: 'idle' });
@@ -68,8 +68,9 @@ function ScanPageContent({ session }: { session: Session }) {
     onError: (err) => {
       submittedTokenRef.current = null;
       if (err instanceof ApiError && err.status === 401) {
+        submittedTokenRef.current = null;
         setScanState({ kind: 'idle' });
-        void refresh();
+        clearSession();
         return;
       }
       if (err instanceof ApiError) {
