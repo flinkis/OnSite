@@ -1,0 +1,44 @@
+{
+  "name": "onsite",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "vite",
+    "dev:server": "tsx watch server/dev.ts",
+    "build": "vite build",
+    "preview": "vite preview",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "hash-admin": "tsx scripts/hash-admin.ts"
+  },
+  "dependencies": {
+    "@auth/core": "^0.37.4",
+    "@hono/auth-js": "^1.0.2",
+    "@hono/node-server": "^1.14.0",
+    "@neondatabase/serverless": "^0.10.4",
+    "@tanstack/react-query": "^5.68.0",
+    "@yudiel/react-qr-scanner": "^2.2.1",
+    "bcryptjs": "^3.0.2",
+    "drizzle-orm": "^0.39.3",
+    "hono": "^4.7.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-qr-code": "^2.0.15",
+    "react-router-dom": "^7.4.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "drizzle-kit": "^0.30.5",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.2"
+  }
+}
