@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { IS_MOCK_AUTH } from '../lib/auth-types';
@@ -9,10 +9,11 @@ import {
   rememberScanRedirect,
   signInAdmin,
   signInGoogle,
+  toNavigateTarget,
 } from '../lib/auth';
 
 export function LoginPage() {
-  const { session, loading } = useAuth();
+  const { session, loading, refresh } = useAuth();
   const [searchParams] = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') ?? '/';
   const redirectTarget = getCallbackTarget(callbackUrl);
@@ -24,6 +25,7 @@ export function LoginPage() {
     authError === 'Configuration' ? 'Sign-in is not configured correctly.' : '',
   );
   const [submitting, setSubmitting] = useState(false);
+  const autoSignInRef = useRef(false);
 
   useEffect(() => {
     if (isScanCheckIn) {
@@ -31,6 +33,23 @@ export function LoginPage() {
       rememberScanRedirect(url.pathname, url.search);
     }
   }, [callbackUrl, isScanCheckIn]);
+
+  useEffect(() => {
+    if (callbackUrl && callbackUrl !== '/') {
+      void refresh();
+    }
+  }, [callbackUrl, refresh]);
+
+  useEffect(() => {
+    if (loading || session || authError || showAdmin || !isScanCheckIn || autoSignInRef.current) {
+      return;
+    }
+    autoSignInRef.current = true;
+    void signInGoogle(redirectTarget).catch(() => {
+      autoSignInRef.current = false;
+      setError('Could not start Google sign-in. Please try again.');
+    });
+  }, [loading, session, authError, showAdmin, isScanCheckIn, redirectTarget]);
 
   if (loading) {
     return (
@@ -45,7 +64,7 @@ export function LoginPage() {
       return <Navigate to="/dashboard" replace />;
     }
     consumePendingScanRedirect();
-    return <Navigate to={redirectTarget} replace />;
+    return <Navigate to={toNavigateTarget(redirectTarget)} replace />;
   }
 
   async function handleGoogle() {

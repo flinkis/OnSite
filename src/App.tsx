@@ -2,7 +2,6 @@ import { Route, Routes } from 'react-router-dom';
 import {
   RequireAdmin,
   RequireAuth,
-  RequireUser,
   RootRedirect,
 } from './components/RouteGuards';
 import { DashboardPage } from './pages/DashboardPage';
@@ -15,11 +14,9 @@ export default function App() {
     <Routes>
       <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/scan" element={<ScanPage />} />
 
       <Route element={<RequireAuth />}>
-        <Route element={<RequireUser />}>
-          <Route path="/scan" element={<ScanPage />} />
-        </Route>
         <Route element={<RequireAdmin />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/print/:id" element={<PrintQrPage />} />

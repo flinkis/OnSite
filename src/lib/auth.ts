@@ -23,9 +23,11 @@ export async function getSession(): Promise<Session | null> {
   }
 
   try {
-    const res = await fetch('/api/auth/session');
+    const res = await fetch('/api/auth/session', { credentials: 'include' });
     if (!res.ok) return null;
-    return res.json();
+    const data = await res.json();
+    if (!data?.user) return null;
+    return data;
   } catch {
     return null;
   }
@@ -164,4 +166,9 @@ export function isScanCheckInCallback(callbackUrl: string): boolean {
   } catch {
     return false;
   }
+}
+
+export function toNavigateTarget(path: string): { pathname: string; search: string } {
+  const url = new URL(path, window.location.origin);
+  return { pathname: url.pathname, search: url.search };
 }

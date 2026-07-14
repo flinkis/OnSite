@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
+import { ScanCheckInLogin } from '../components/ScanCheckInLogin';
 import {
   ApiError,
   apiFetch,
@@ -31,8 +32,9 @@ function extractToken(value: string): string | null {
 }
 
 export function ScanPage() {
-  const { session } = useAuth();
+  const { session, loading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const qrToken = searchParams.get('t');
   const queryClient = useQueryClient();
   const [scanState, setScanState] = useState<ScanState>({ kind: 'idle' });
   const [cameraActive, setCameraActive] = useState(false);
@@ -41,6 +43,7 @@ export function ScanPage() {
   const { data: history } = useQuery({
     queryKey: ['scans', 'me'],
     queryFn: () => apiFetch<{ scans: ScanRecord[] }>('/api/scans/me'),
+    enabled: !!session,
   });
 
   const submitScan = useMutation({
@@ -116,6 +119,26 @@ export function ScanPage() {
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
+
+  if (loading) {
+    return (
+      <div className="container">
+        <p className="muted">Loading…</p>
+      </div>
+    );
+  }
+
+  if (!session && qrToken) {
+    return <ScanCheckInLogin token={qrToken} />;
+  }
+
+  if (!session) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (session.role === 'admin' && !qrToken) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="container">
