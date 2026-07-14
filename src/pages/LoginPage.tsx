@@ -8,9 +8,12 @@ export function LoginPage() {
   const { session, loading } = useAuth();
   const [searchParams] = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') ?? '/';
+  const authError = searchParams.get('error');
   const [showAdmin, setShowAdmin] = useState(false);
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(
+    authError === 'Configuration' ? 'Sign-in is not configured correctly.' : '',
+  );
   const [submitting, setSubmitting] = useState(false);
 
   if (loading) {
@@ -28,7 +31,11 @@ export function LoginPage() {
 
   async function handleGoogle() {
     setError('');
-    await signInGoogle(callbackUrl);
+    try {
+      await signInGoogle(callbackUrl);
+    } catch {
+      setError('Could not start Google sign-in. Please try again.');
+    }
   }
 
   async function handleAdmin(e: React.FormEvent) {
@@ -53,6 +60,8 @@ export function LoginPage() {
         <button type="button" className="btn" onClick={() => void handleGoogle()}>
           Continue with Google
         </button>
+
+        {error && !showAdmin && <p className="error-text">{error}</p>}
 
         {!showAdmin ? (
           <button

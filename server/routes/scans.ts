@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { Db } from '../db/index.js';
 import { locations, scans } from '../db/schema.js';
 import { checkImpossibleTravel, findDuplicateScan } from '../lib/abuse.js';
+import { DUPLICATE_WINDOW_MINUTES } from '../lib/geo.js';
 import type { AuthEnv } from '../middleware/auth.js';
 import { requireAdmin, requireUser } from '../middleware/auth.js';
 
@@ -60,21 +61,46 @@ export function scansRoutes(getDb: (c: { env: AuthEnv['Bindings'] }) => Db) {
 
     const scannedAt = new Date();
     const travel = await checkImpossibleTravel(db, auth.id, location.id, scannedAt);
+    const cutoff = new Date(Date.now() - DUPLICATE_WINDOW_MINUTES * 60 * 1000);
 
-    const [scan] = await db
-      .insert(scans)
-      .values({
-        userId: auth.id,
-        userName: auth.name ?? auth.email ?? auth.id,
-        locationId: location.id,
-        scannedAt,
-        gpsLat: body.data.gps?.lat ?? null,
-        gpsLng: body.data.gps?.lng ?? null,
-        gpsAccuracyM: body.data.gps?.accuracy ?? null,
-        verification: travel.impossible ? 'flagged' : 'none',
-        flagReason: travel.reason ?? null,
-      })
-      .returning();
+    const inserted = await db.execute<{ id: string; scanned_at: Date; verification: string }>(sql`
+      INSERT INTO scans (
+        user_id, user_name, location_id, scanned_at,
+        gps_lat, gps_lng, gps_accuracy_m, verification, flag_reason
+      )
+      SELECT
+        ${auth.id},
+        ${auth.name ?? auth.email ?? auth.id},
+        ${location.id},
+        ${scannedAt.toISOString()}::timestamptz,
+        ${body.data.gps?.lat ?? null},
+        ${body.data.gps?.lng ?? null},
+        ${body.data.gps?.accuracy ?? null},
+        ${travel.impossible ? 'flagged' : 'none'},
+        ${travel.reason ?? null}
+      WHERE NOT EXISTS (
+        SELECT 1 FROM scans
+        WHERE user_id = ${auth.id}
+          AND location_id = ${location.id}
+          AND scanned_at >= ${cutoff.toISOString()}::timestamptz
+      )
+      RETURNING id, scanned_at, verification
+    `);
+
+    const scanRow = inserted.rows[0];
+    if (!scanRow) {
+      const raced = await findDuplicateScan(db, auth.id, location.id);
+      return c.json(
+        {
+          error: 'duplicate',
+          message: raced
+            ? `Already checked in here at ${raced.scannedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+            : 'Already checked in here recently',
+          scannedAt: raced?.scannedAt,
+        },
+        409,
+      );
+    }
 
     if (travel.impossible && travel.previousScanId) {
       await db
@@ -85,10 +111,10 @@ export function scansRoutes(getDb: (c: { env: AuthEnv['Bindings'] }) => Db) {
 
     return c.json({
       scan: {
-        id: scan.id,
+        id: scanRow.id,
         locationName: location.name,
-        scannedAt: scan.scannedAt,
-        verification: scan.verification,
+        scannedAt: scanRow.scanned_at,
+        verification: scanRow.verification,
       },
     });
   });

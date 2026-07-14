@@ -48,18 +48,24 @@ Production URL: https://on-site-three.vercel.app
 
 ### 1. Google Cloud OAuth
 
-Redirect URI:
-`https://on-site-three.vercel.app/api/auth/callback/google`
+In [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials → your OAuth 2.0 Client, add **both** environments:
 
-JavaScript origin:
-`https://on-site-three.vercel.app`
+**Authorized JavaScript origins**
+- `http://localhost:5173`
+- `https://on-site-three.vercel.app`
+
+**Authorized redirect URIs**
+- `http://localhost:5173/api/auth/callback/google`
+- `https://on-site-three.vercel.app/api/auth/callback/google`
+
+Do **not** use port `3001` — the browser always uses the Vite dev server on `5173`.
 
 ### 2. Vercel environment variables
 
 | Variable | Production | Preview | Notes |
 |---|---|---|---|
 | `AUTH_SECRET` | ✅ | ✅ | Random secret (`node -e "..."`) |
-| `AUTH_URL` | ✅ | ✅ | `https://on-site-three.vercel.app` |
+| `AUTH_URL` | ❌ unset | ❌ unset | Set to `http://localhost:5173` in local `.env` only; Vercel uses `trustHost` |
 | `AUTH_GOOGLE_ID` | ✅ | ✅ | From Google Cloud Console |
 | `AUTH_GOOGLE_SECRET` | ✅ | ✅ | From Google Cloud Console |
 | `ADMIN_PASSWORD_HASH` | ✅ | ✅ | `npm run hash-admin -- <password>` |

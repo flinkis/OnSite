@@ -28,6 +28,7 @@ export async function apiFetch<T>(
 
   const res = await fetch(path, {
     ...init,
+    credentials: 'include',
     headers,
   });
 

@@ -1,18 +1,35 @@
+import { env } from 'hono/adapter';
 import { getAuthUser } from '@hono/auth-js';
 import { initAuthConfig } from '@hono/auth-js';
+import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { createAuthConfig, type AppRole } from '../auth.js';
 
+function readEnv(c: Context) {
+  const bindings = c.env as AuthEnv['Bindings'] | undefined;
+  const e = env(c);
+  return {
+    authSecret:
+      bindings?.AUTH_SECRET ?? e.AUTH_SECRET ?? process.env.AUTH_SECRET ?? '',
+    authUrl: bindings?.AUTH_URL ?? e.AUTH_URL ?? process.env.AUTH_URL ?? '',
+    googleId:
+      bindings?.AUTH_GOOGLE_ID ?? e.AUTH_GOOGLE_ID ?? process.env.AUTH_GOOGLE_ID,
+    googleSecret:
+      bindings?.AUTH_GOOGLE_SECRET ??
+      e.AUTH_GOOGLE_SECRET ??
+      process.env.AUTH_GOOGLE_SECRET,
+    adminPasswordHash:
+      bindings?.ADMIN_PASSWORD_HASH ??
+      e.ADMIN_PASSWORD_HASH ??
+      process.env.ADMIN_PASSWORD_HASH,
+  };
+}
+
 export function authConfigMiddleware() {
-  return initAuthConfig((c) =>
-    createAuthConfig({
-      authSecret: c.env.AUTH_SECRET,
-      authUrl: c.env.AUTH_URL,
-      googleId: c.env.AUTH_GOOGLE_ID,
-      googleSecret: c.env.AUTH_GOOGLE_SECRET,
-      adminPasswordHash: c.env.ADMIN_PASSWORD_HASH,
-    }),
-  );
+  return initAuthConfig((c) => {
+    const config = readEnv(c);
+    return createAuthConfig(config);
+  });
 }
 
 export type AuthEnv = {

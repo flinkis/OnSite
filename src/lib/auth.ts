@@ -22,9 +22,13 @@ export async function getSession(): Promise<Session | null> {
     return stored ? mockSessions[stored] : null;
   }
 
-  const res = await fetch('/api/auth/session');
-  if (!res.ok) return null;
-  return res.json();
+  try {
+    const res = await fetch('/api/auth/session');
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
 }
 
 export async function signInGoogle(callbackUrl = '/') {
@@ -33,7 +37,37 @@ export async function signInGoogle(callbackUrl = '/') {
     window.location.href = callbackUrl;
     return;
   }
-  window.location.href = `/api/auth/signin/google?callbackUrl=${encodeURIComponent(callbackUrl)}`;
+
+  const csrfRes = await fetch('/api/auth/csrf', { credentials: 'include' });
+  if (!csrfRes.ok) {
+    throw new Error('Failed to start Google sign-in');
+  }
+  const { csrfToken } = await csrfRes.json();
+
+  const res = await fetch('/api/auth/signin/google', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-Auth-Return-Redirect': '1',
+    },
+    body: new URLSearchParams({ csrfToken, callbackUrl }),
+    credentials: 'include',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to start Google sign-in');
+  }
+
+  const data = (await res.json()) as { url?: string };
+  if (data.url) {
+    const next = new URL(data.url, window.location.origin);
+    if (!next.searchParams.get('error')) {
+      window.location.href = data.url;
+      return;
+    }
+  }
+
+  throw new Error('Failed to start Google sign-in');
 }
 
 export async function signInAdmin(password: string, callbackUrl = '/') {
@@ -46,7 +80,7 @@ export async function signInAdmin(password: string, callbackUrl = '/') {
     return { ok: false, error: 'Invalid credentials' };
   }
 
-  const csrfRes = await fetch('/api/auth/csrf');
+  const csrfRes = await fetch('/api/auth/csrf', { credentials: 'include' });
   const { csrfToken } = await csrfRes.json();
 
   const res = await fetch('/api/auth/callback/credentials', {
@@ -58,6 +92,7 @@ export async function signInAdmin(password: string, callbackUrl = '/') {
       callbackUrl,
       json: 'true',
     }),
+    credentials: 'include',
     redirect: 'manual',
   });
 
@@ -76,13 +111,14 @@ export async function signOut() {
     return;
   }
 
-  const csrfRes = await fetch('/api/auth/csrf');
+  const csrfRes = await fetch('/api/auth/csrf', { credentials: 'include' });
   const { csrfToken } = await csrfRes.json();
 
   await fetch('/api/auth/signout', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ csrfToken }),
+    credentials: 'include',
   });
   window.location.href = '/login';
 }

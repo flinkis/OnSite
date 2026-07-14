@@ -18,7 +18,8 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:3001',
-        changeOrigin: true,
+        // Keep Host: localhost:5173 so OAuth redirect_uri matches Google Console
+        changeOrigin: false,
       },
     },
   },

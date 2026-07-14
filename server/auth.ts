@@ -86,6 +86,7 @@ export function createAuthConfig(env: {
     session: { strategy: 'jwt' },
     pages: {
       signIn: '/login',
+      error: '/login',
     },
     callbacks: {
       async jwt({ token, user, account }) {
@@ -109,9 +110,10 @@ export function createAuthConfig(env: {
         return session;
       },
       async redirect({ url, baseUrl }) {
-        if (url.startsWith('/')) return `${baseUrl}${url}`;
-        if (new URL(url).origin === baseUrl) return url;
-        return baseUrl;
+        const origin = new URL(baseUrl).origin;
+        if (url.startsWith('/')) return `${origin}${url}`;
+        if (new URL(url).origin === origin) return url;
+        return origin;
       },
     },
   };

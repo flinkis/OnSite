@@ -1,3 +1,4 @@
+import { env } from 'hono/adapter';
 import { authHandler } from '@hono/auth-js';
 import { Hono } from 'hono';
 import { createDb } from './db/index.js';
@@ -7,7 +8,11 @@ import { presenceRoutes } from './routes/presence.js';
 import { scansRoutes } from './routes/scans.js';
 
 function getDb(c: { env: AuthEnv['Bindings'] }) {
-  return createDb(c.env.DATABASE_URL);
+  const bindings = c.env as AuthEnv['Bindings'] | undefined;
+  const e = env(c as Parameters<typeof env>[0]);
+  const url =
+    bindings?.DATABASE_URL ?? e.DATABASE_URL ?? process.env.DATABASE_URL ?? '';
+  return createDb(url);
 }
 
 export function createApp() {

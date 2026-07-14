@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Scanner } from '@yudiel/react-qr-scanner';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   ApiError,
@@ -36,6 +36,7 @@ export function ScanPage() {
   const queryClient = useQueryClient();
   const [scanState, setScanState] = useState<ScanState>({ kind: 'idle' });
   const [cameraActive, setCameraActive] = useState(false);
+  const submittedTokenRef = useRef<string | null>(null);
 
   const { data: history } = useQuery({
     queryKey: ['scans', 'me'],
@@ -63,6 +64,7 @@ export function ScanPage() {
       setSearchParams({});
     },
     onError: (err) => {
+      submittedTokenRef.current = null;
       if (err instanceof ApiError) {
         setScanState({
           kind: 'error',
@@ -77,18 +79,25 @@ export function ScanPage() {
 
   const handleToken = useCallback(
     (token: string) => {
-      if (submitScan.isPending || scanState.kind === 'success') return;
+      if (submittedTokenRef.current === token) return;
+      if (submitScan.isPending || scanState.kind === 'submitting') return;
+      if (scanState.kind === 'success') return;
+
+      submittedTokenRef.current = token;
       setScanState({ kind: 'submitting' });
+      if (searchParams.get('t')) {
+        setSearchParams({}, { replace: true });
+      }
       submitScan.mutate(token);
     },
-    [submitScan, scanState.kind],
+    [submitScan, scanState.kind, searchParams, setSearchParams],
   );
 
   useEffect(() => {
     const token = searchParams.get('t');
-    if (token && scanState.kind === 'idle') {
-      handleToken(token);
-    }
+    if (!token || scanState.kind !== 'idle') return;
+    if (submittedTokenRef.current === token) return;
+    handleToken(token);
   }, [searchParams, handleToken, scanState.kind]);
 
   useEffect(() => {
@@ -126,6 +135,7 @@ export function ScanPage() {
               type="button"
               className="btn"
               onClick={() => {
+                submittedTokenRef.current = null;
                 setScanState({ kind: 'idle' });
                 setCameraActive(false);
               }}
@@ -141,7 +151,10 @@ export function ScanPage() {
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => setScanState({ kind: 'idle' })}
+              onClick={() => {
+                submittedTokenRef.current = null;
+                setScanState({ kind: 'idle' });
+              }}
             >
               Try again
             </button>
