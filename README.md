@@ -42,14 +42,40 @@ With `VITE_AUTH_MODE=mock`:
 - **Continue with Google** → signs in as a test user
 - **Admin login** → password `admin`
 
-## Production setup
+## Production setup (Vercel)
 
-1. Google Cloud OAuth client with redirect URI:
-   `https://<your-domain>/api/auth/callback/google`
-2. Vercel env vars: `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`,
-   `ADMIN_PASSWORD_HASH`, `DATABASE_URL`
-3. Set `AUTH_URL` to your production URL
-4. Remove or unset `VITE_AUTH_MODE` for real auth
+Production URL: https://on-site-three.vercel.app
+
+### 1. Google Cloud OAuth
+
+Redirect URI:
+`https://on-site-three.vercel.app/api/auth/callback/google`
+
+JavaScript origin:
+`https://on-site-three.vercel.app`
+
+### 2. Vercel environment variables
+
+| Variable | Production | Preview | Notes |
+|---|---|---|---|
+| `AUTH_SECRET` | ✅ | ✅ | Random secret (`node -e "..."`) |
+| `AUTH_URL` | ✅ | ✅ | `https://on-site-three.vercel.app` |
+| `AUTH_GOOGLE_ID` | ✅ | ✅ | From Google Cloud Console |
+| `AUTH_GOOGLE_SECRET` | ✅ | ✅ | From Google Cloud Console |
+| `ADMIN_PASSWORD_HASH` | ✅ | ✅ | `npm run hash-admin -- <password>` |
+| `DATABASE_URL` | ✅ | ✅ | Neon (Vercel Marketplace) |
+| `VITE_AUTH_MODE` | ❌ unset | `mock` | Vite build-time only; prod uses real auth |
+| `MOCK_AUTH` | ❌ unset | `true` | Preview API accepts mock login |
+
+**Important:** `VITE_*` variables are embedded at **build time**. After changing them in Vercel, redeploy for changes to take effect.
+
+### 3. Redeploy after env changes
+
+```bash
+npx vercel --prod
+```
+
+Or push to GitHub if the repo is connected to Vercel.
 
 ## Features (v1)
 

@@ -13,4 +13,8 @@ export interface Session {
 }
 
 export const AUTH_MODE = import.meta.env.VITE_AUTH_MODE ?? 'real';
-export const IS_MOCK_AUTH = AUTH_MODE === 'mock';
+
+/** Mock auth: local dev + Vercel preview only — never production. */
+export const IS_MOCK_AUTH =
+  AUTH_MODE === 'mock' &&
+  import.meta.env.VITE_VERCEL_TARGET_ENV !== 'production';

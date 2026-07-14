@@ -37,6 +37,7 @@ export type AuthEnv = {
 async function resolveUser(c: Parameters<typeof getAuthUser>[0]) {
   const mockRole = c.req.header('X-Mock-Role');
   if (
+    process.env.VERCEL_TARGET_ENV !== 'production' &&
     (process.env.MOCK_AUTH === 'true' || process.env.VITE_AUTH_MODE === 'mock') &&
     (mockRole === 'user' || mockRole === 'admin')
   ) {
