@@ -7,7 +7,7 @@ type Props = {
 };
 
 export function ScanCheckInLogin({ token }: Props) {
-  const { refresh } = useAuth();
+  const { session, loading, refresh } = useAuth();
   const redirectTarget = `/scan?t=${encodeURIComponent(token)}`;
   const [error, setError] = useState('');
   const autoSignInRef = useRef(false);
@@ -21,13 +21,13 @@ export function ScanCheckInLogin({ token }: Props) {
   }, [refresh]);
 
   useEffect(() => {
-    if (autoSignInRef.current) return;
+    if (loading || session || autoSignInRef.current) return;
     autoSignInRef.current = true;
     void signInGoogle(redirectTarget).catch(() => {
       autoSignInRef.current = false;
       setError('Could not start Google sign-in. Please try again.');
     });
-  }, [redirectTarget]);
+  }, [loading, session, redirectTarget]);
 
   async function handleGoogle() {
     setError('');

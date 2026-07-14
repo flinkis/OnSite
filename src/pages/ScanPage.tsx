@@ -10,6 +10,7 @@ import {
   type ScanRecord,
 } from '../lib/api';
 import { signOut, PENDING_SCAN_SEARCH_KEY } from '../lib/auth';
+import type { Session } from '../lib/auth-types';
 import { useAuth } from '../hooks/useAuth';
 
 type ScanState =
@@ -31,10 +32,9 @@ function extractToken(value: string): string | null {
   return null;
 }
 
-export function ScanPage() {
-  const { session, loading } = useAuth();
+function ScanPageContent({ session }: { session: Session }) {
+  const { refresh } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const qrToken = searchParams.get('t');
   const queryClient = useQueryClient();
   const [scanState, setScanState] = useState<ScanState>({ kind: 'idle' });
   const [cameraActive, setCameraActive] = useState(false);
@@ -43,7 +43,6 @@ export function ScanPage() {
   const { data: history } = useQuery({
     queryKey: ['scans', 'me'],
     queryFn: () => apiFetch<{ scans: ScanRecord[] }>('/api/scans/me'),
-    enabled: !!session,
   });
 
   const submitScan = useMutation({
@@ -68,6 +67,11 @@ export function ScanPage() {
     },
     onError: (err) => {
       submittedTokenRef.current = null;
+      if (err instanceof ApiError && err.status === 401) {
+        setScanState({ kind: 'idle' });
+        void refresh();
+        return;
+      }
       if (err instanceof ApiError) {
         setScanState({
           kind: 'error',
@@ -97,15 +101,6 @@ export function ScanPage() {
   );
 
   useEffect(() => {
-    if (searchParams.get('t')) return;
-    const pending = sessionStorage.getItem(PENDING_SCAN_SEARCH_KEY);
-    if (!pending) return;
-    sessionStorage.removeItem(PENDING_SCAN_SEARCH_KEY);
-    const query = pending.startsWith('?') ? pending.slice(1) : pending;
-    setSearchParams(new URLSearchParams(query), { replace: true });
-  }, [searchParams, setSearchParams]);
-
-  useEffect(() => {
     const token = searchParams.get('t');
     if (!token || scanState.kind !== 'idle') return;
     if (submittedTokenRef.current === token) return;
@@ -120,33 +115,13 @@ export function ScanPage() {
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
-  if (loading) {
-    return (
-      <div className="container">
-        <p className="muted">Loading…</p>
-      </div>
-    );
-  }
-
-  if (!session && qrToken) {
-    return <ScanCheckInLogin token={qrToken} />;
-  }
-
-  if (!session) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (session.role === 'admin' && !qrToken) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
   return (
     <div className="container">
       <div className="header-bar">
         <div>
           <h1 style={{ margin: 0 }}>Check in</h1>
           <p className="muted" style={{ margin: 0 }}>
-            {session?.user?.name ?? session?.user?.email}
+            {session.user?.name ?? session.user?.email}
           </p>
         </div>
         <button type="button" className="btn btn-secondary" onClick={() => void signOut()}>
@@ -263,4 +238,41 @@ export function ScanPage() {
       </div>
     </div>
   );
+}
+
+export function ScanPage() {
+  const { session, loading } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const qrToken = searchParams.get('t');
+
+  useEffect(() => {
+    if (searchParams.get('t')) return;
+    const pending = sessionStorage.getItem(PENDING_SCAN_SEARCH_KEY);
+    if (!pending) return;
+    sessionStorage.removeItem(PENDING_SCAN_SEARCH_KEY);
+    const query = pending.startsWith('?') ? pending.slice(1) : pending;
+    setSearchParams(new URLSearchParams(query), { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  if (loading) {
+    return (
+      <div className="container">
+        <p className="muted">Loading…</p>
+      </div>
+    );
+  }
+
+  if (!session && qrToken) {
+    return <ScanCheckInLogin token={qrToken} />;
+  }
+
+  if (!session) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (session.role === 'admin' && !qrToken) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <ScanPageContent session={session} />;
 }
